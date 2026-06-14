@@ -52,7 +52,7 @@ The project includes a complete self-checking verification environment and GTKWa
 
 GitHub cannot directly render `.vcd` files. The generated waveform can be viewed using GTKWave.
 
-![UART Simulation Waveforms](waveforms/waveforms.png)
+![UART Simulation Waveforms](wave.png%20%282%29.png)
 
 ### Protocol Timing Mechanics
 
