@@ -1,111 +1,126 @@
-
-
-`timescale 1ns / 1ps
-
 module uart_rx #(
-    parameter DATA_WIDTH = 8  // Configurable data width (Standard is 8-bit)
+    parameter DATA_WIDTH = 8
 )(
-    input  wire                    clk,           // System Clock
-    input  wire                    rst_n,         // Asynchronous active-low reset
-    input  wire                    baud_tick,     // 16x over-sampling tick from baud_gen
-    input  wire                    rx,            // Incoming serial data line
-    output reg                     rx_done_tick,  // High pulse for 1 cycle when byte received
-    output reg [DATA_WIDTH-1:0]    rx_data        // Parallel data byte output
+    input  wire                    clk,
+    input  wire                    rst_n,
+    input  wire                    rx_serial,
+    input  wire                    baud_tick,
+    output reg                     rx_done_tick,
+    output reg  [DATA_WIDTH-1:0]   rx_data,
+    output reg                     parity_error,
+    output reg                     framing_error
 );
 
-    // Finite State Machine (FSM) State Definitions
-    localparam IDLE  = 2'b00;
-    localparam START = 2'b01;
-    localparam DATA  = 2'b10;
-    localparam STOP  = 2'b11;
+    localparam [2:0] ST_IDLE   = 3'b000,
+                     ST_START  = 3'b001,
+                     ST_DATA   = 3'b010,
+                     ST_PARITY = 3'b011,
+                     ST_STOP   = 3'b100;
 
-    // Internal FSM Registers
-    reg [1:0] state_reg, next_state;
-    
-    // Internal Counters & Data Buffers
-    reg [3:0] s_reg, s_next;                 // Counts 16 baud_ticks to find bit centers
-    reg [2:0] n_reg, n_next;                 // Tracks which bit index is being received
-    reg [DATA_WIDTH-1:0] b_reg, b_next;     // Shifts incoming serial bits into a parallel byte
+    reg [2:0]            state_curr;
+    reg [2:0]            state_next;
+    reg [3:0]            tick_count_reg,  tick_count_next;
+    reg [2:0]            bit_count_reg,   bit_count_next;
+    reg [DATA_WIDTH-1:0] shift_reg,       shift_next;
+    reg                  parity_err_next;
+    reg                  framing_err_next;
+    reg                  rx_done_next;
 
-    // FSM Sequential State Register (FIXED: changed megedge to negedge)
-    always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk) begin
         if (!rst_n) begin
-            state_reg <= IDLE;
-            s_reg     <= 4'b0;
-            n_reg     <= 3'b0;
-            b_reg     <= {DATA_WIDTH{1'b0}};
+            state_curr      <= ST_IDLE;
+            tick_count_reg  <= 4'b0;
+            bit_count_reg   <= 3'b0;
+            shift_reg       <= {DATA_WIDTH{1'b0}};
+            rx_data         <= {DATA_WIDTH{1'b0}};
+            parity_error    <= 1'b0;
+            framing_error   <= 1'b0;
+            rx_done_tick    <= 1'b0;
         end else begin
-            state_reg <= next_state;
-            s_reg     <= s_next;
-            n_reg     <= n_next;
-            b_reg     <= b_next;
+            state_curr      <= state_next;
+            tick_count_reg  <= tick_count_next;
+            bit_count_reg   <= bit_count_next;
+            shift_reg       <= shift_next;
+            rx_done_tick    <= rx_done_next;
+            
+            if (rx_done_next) begin
+                rx_data       <= shift_next;
+                parity_error  <= parity_err_next;
+                framing_error <= framing_err_next;
+            end
         end
     end
 
-    // FSM Combinational Next-State Logic
-    always @* begin
-        next_state   = state_reg;
-        s_next       = s_reg;
-        n_next       = n_reg;
-        b_next       = b_reg;
-        rx_done_tick = 1'b0; // Default output pulse to low
+    always @(*) begin
+        state_next       = state_curr;
+        tick_count_next  = tick_count_reg;
+        bit_count_next   = bit_count_reg;
+        shift_next       = shift_reg;
+        parity_err_next  = parity_error;
+        framing_err_next = framing_error;
+        rx_done_next     = 1'b0;
 
-        case (state_reg)
-            IDLE: begin
-                if (!rx) begin // Start bit detected (line transitions from 1 to 0)
-                    next_state = START;
-                    s_next     = 4'b0;
+        case (state_curr)
+            ST_IDLE: begin
+                if (!rx_serial) begin
+                    state_next      = ST_START;
+                    tick_count_next = 4'b0;
                 end
             end
 
-            START: begin
+            ST_START: begin
                 if (baud_tick) begin
-                    if (s_reg == 7) begin // Wait 7 ticks to reach the exact center of start bit
-                        next_state = DATA;
-                        s_next     = 4'b0;
-                        n_next     = 3'b0;
+                    if (tick_count_reg == 7) begin
+                        state_next      = ST_DATA;
+                        tick_count_next = 4'b0;
+                        bit_count_next  = 3'b0;
                     end else begin
-                        s_next = s_reg + 1'b1;
+                        tick_count_next = tick_count_reg + 1'b1;
                     end
                 end
             end
 
-            DATA: begin
+            ST_DATA: begin
                 if (baud_tick) begin
-                    if (s_reg == 15) begin // Sample data at the exact center of the bit window
-                        s_next = 4'b0;
-                        b_next = {rx, b_reg[DATA_WIDTH-1:1]}; // Shift right (LSB received first)
-                        if (n_reg == (DATA_WIDTH - 1)) begin
-                            next_state = STOP;
-                        end else begin
-                            n_next = n_reg + 1'b1;
-                        end
+                    if (tick_count_reg == 15) begin
+                        tick_count_next = 4'b0;
+                        shift_next      = {rx_serial, shift_reg[DATA_WIDTH-1:1]};
+                        if (bit_count_reg == (DATA_WIDTH - 1))
+                            state_next = ST_PARITY;
+                        else
+                            bit_count_next = bit_count_reg + 1'b1;
                     end else begin
-                        s_next = s_reg + 1'b1;
+                        tick_count_next = tick_count_reg + 1'b1;
                     end
                 end
             end
 
-            STOP: begin
+            ST_PARITY: begin
                 if (baud_tick) begin
-                    if (s_reg == 15) begin // Wait 15 ticks to sample center of stop bit
-                        rx_done_tick = 1'b1; // Trigger data valid pulse
-                        next_state   = IDLE;
+                    if (tick_count_reg == 15) begin
+                        tick_count_next = 4'b0;
+                        parity_err_next = (rx_serial != (^shift_reg));
+                        state_next      = ST_STOP;
                     end else begin
-                        s_next = s_reg + 1'b1;
+                        tick_count_next = tick_count_reg + 1'b1;
                     end
                 end
             end
+
+            ST_STOP: begin
+                if (baud_tick) begin
+                    if (tick_count_reg == 15) begin
+                        framing_err_next = (rx_serial == 1'b0);
+                        rx_done_next     = 1'b1;
+                        state_next       = ST_IDLE;
+                    end else begin
+                        tick_count_next = tick_count_reg + 1'b1;
+                    end
+                end
+            end
+
+            default: state_next = ST_IDLE;
         endcase
-    end
-
-    // Route the shifting buffer register to the output data port (FIXED: changed megedge to negedge)
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            rx_data <= {DATA_WIDTH{1'b0}};
-        end else begin
-            rx_data <= b_reg;
-        end
     end
 
 endmodule
