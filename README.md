@@ -17,7 +17,7 @@ A silicon-grade, fully parameterizable **UART (Universal Asynchronous Receiver-T
 * **Modular Two-Process FSM Topography:** Control units separate sequential current-state transitions from combinational next-state decoding, optimizing synthesis wire paths and boosting maximum clock frequency ($F_{max}$).
 * **Dynamic Hardware Interlocking:** Features explicit handshake control signaling (`tx_busy`, `rx_done_tick`, `parity_error`, `framing_error`) for seamless interface integration with master microcontrollers or FIFO buffers.
 
----
+---```text
 
 ## ◆ Hardware Timing Waveforms
 
