@@ -27,7 +27,7 @@ Since GitHub doesn't render `.vcd` trace files directly, here is the architectur
 
 ### Protocol Timing Mechanics (Oversampling Visualization)
 
-```text
+
               Transaction Active (Start Bit) ──┐
                                                ▼
 rx_serial   ───┐                               ┌────────────────────────
@@ -39,7 +39,7 @@ Tick Count     0 1 2 3 4 5 6 7 8 ...   14 15 0 1 2 3 4 5 6 7 8 ...
                              │               │             │
                        [Center Sample]  [Reset Tick]  [Data Sample 0]
                         (Verify Start)  (Align FSM)   (Stable Center)
-```
+```text
 UART_Communication_System/
 ├── rtl/
 │   ├── baud_gen.v       # Parameterized clock division strobe generator
