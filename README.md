@@ -1,52 +1,138 @@
-# ⚡ Synthesizable Parameterized UART Core with Over-Sampling
+# ⚡ Synthesizable Parameterized UART Core with 16x Over-Sampling
 
-![](https://img.shields.io/badge/Language-Verilog%20HDL-blue)
-![](https://img.shields.io/badge/Simulator-Icarus%20Verilog-orange)
-![](https://img.shields.io/badge/Viewer-GTKWave-green)
-![]([https://img.shields.io/badge/Design-Synthesizable%20IP-brightgreen](https://img.shields.io/badge/Design-Synthesizable%20IP-brightgreen))
+![Verilog](https://img.shields.io/badge/Language-Verilog%20HDL-blue)
+![Simulator](https://img.shields.io/badge/Simulator-Icarus%20Verilog-orange)
+![GTKWave](https://img.shields.io/badge/Viewer-GTKWave-green)
+![Design](https://img.shields.io/badge/Design-Synthesizable%20IP-brightgreen)
 
-A silicon-grade, fully parameterizable **UART (Universal Asynchronous Receiver-Transmitter) Subsystem** designed in Verilog HDL. This IP core features decoupled finite state machines (FSM), integrated hardware parity computation matrixing, and a noise-resilient 16x mid-bit oversampling matrix for robust asynchronous data frame synchronization. Includes a fully automated loopback verification testbench environment.
+A silicon-grade, fully parameterized **UART (Universal Asynchronous Receiver-Transmitter) Communication Subsystem** designed in Verilog HDL.
+
+The design incorporates modular FSM-based control, configurable baud-rate generation, parity support, and a robust **16x oversampling receiver architecture** for reliable asynchronous serial communication.
+
+The project includes a complete self-checking verification environment and GTKWave simulation support.
 
 ---
 
 ## ◆ Features & Specifications
 
-* **16x Over-Sampling Alignment Matrix:** The receiver module utilizes a 16x clock multiplier strobe to execute center-sampling alignment (sampling exactly at the stable 7th and 15th internal ticks). This maximizes timing margins, mitigates clock drift, and rejects line noise/glitches.
-* **Integrated Hardware Parity Engine:** Configured with native structural Even Parity generation (Transmitter) and real-time computation validation (Receiver) to detect line errors instantly.
-* **Strict Synchronous Reset Scheme:** Built using explicit, clock-edge synchronized active-low reset logic (`rst_n`) across all control paths to maintain fully predictable state boundaries and prevent hardware lockup.
-* **Modular Two-Process FSM Topography:** Control units separate sequential current-state transitions from combinational next-state decoding, optimizing synthesis wire paths and boosting maximum clock frequency ($F_{max}$).
-* **Dynamic Hardware Interlocking:** Features explicit handshake control signaling (`tx_busy`, `rx_done_tick`, `parity_error`, `framing_error`) for seamless interface integration with master microcontrollers or FIFO buffers.
+### 16x Over-Sampling Receiver
 
----```text
+- Implements 16x baud-rate oversampling for accurate center-bit sampling.
+- Samples incoming data at the middle of each bit period for improved noise immunity.
+- Improves tolerance against clock mismatch and serial line jitter.
+
+### Integrated Parity Engine
+
+- Supports hardware parity generation.
+- Real-time parity checking at the receiver.
+- Generates `parity_error` for invalid frames.
+
+### UART Transmitter
+
+- FSM-based transmitter architecture.
+- Generates Start Bit, Data Bits (LSB First), Parity Bit, and Stop Bit.
+- Includes `tx_busy` handshake signal.
+
+### UART Receiver
+
+- Mid-bit sampling architecture.
+- Serial-to-parallel conversion.
+- Generates `rx_done_tick`.
+- Supports framing error detection.
+
+### Synthesizable RTL
+
+- IEEE 1364 Verilog HDL compliant.
+- FPGA and ASIC friendly.
+- Fully synchronous design.
+
+---
 
 ## ◆ Hardware Timing Waveforms
 
-Since GitHub doesn't render `.vcd` trace files directly, here is the architectural timing relationship demonstrating how the controller oversamples bits on the serial line:
+GitHub cannot directly render `.vcd` files. The generated waveform can be viewed using GTKWave.
 
-![UART Simulation Waveforms](waveforms.png)
+![UART Simulation Waveforms](waveforms/waveforms.png)
 
-### Protocol Timing Mechanics (Oversampling Visualization)
+### Protocol Timing Mechanics
 
+```text
+              Transaction Active (Start Bit)
+                         │
+                         ▼
 
-              Transaction Active (Start Bit) ──┐
-                                               ▼
-rx_serial   ───┐                               ┌────────────────────────
-               └───────────────────────────────┘
-               │                               │
-baud_tick   ───┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴
-Tick Count     0 1 2 3 4 5 6 7 8 ...   14 15 0 1 2 3 4 5 6 7 8 ...
-                             ▲               ▲             ▲
-                             │               │             │
-                       [Center Sample]  [Reset Tick]  [Data Sample 0]
-                        (Verify Start)  (Align FSM)   (Stable Center)
+RX Serial  ─────┐                         ┌──────────────
+                └─────────────────────────┘
+
+Baud Tick  ─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─
+
+Tick Count  0 1 2 3 4 5 6 7 8 ... 14 15
+
+                        ▲
+                        │
+                 Center Sampling Point
+```
+
+---
+
+## ◆ Project Structure
+
 ```text
 UART_Communication_System/
+│
 ├── rtl/
-│   ├── baud_gen.v       # Parameterized clock division strobe generator
-│   ├── uart_tx.v        # Parallel-to-serial transmitter module with parity generation
-│   ├── uart_rx.v        # Serial-to-parallel center-sampling receiver module
-│   └── uart_top.v       # Structural top wrapper stitching subsystem blocks
+│   ├── baud_gen.v
+│   ├── uart_tx.v
+│   ├── uart_rx.v
+│   └── uart_top.v
+│
 ├── tb/
-│   └── uart_tb.v        # Automated self-checking functional verification testbench
-└── waveforms/
-    └── uart_sim_upgraded.vcd     # Generated simulation timing trace file
+│   └── uart_tb.v
+│
+├── waveforms/
+│   ├── uart_waveform.png
+│   └── uart_sim.vcd
+│
+└── README.md
+```
+
+---
+
+## ◆ Verification
+
+- Self-checking loopback testbench
+- Automated PASS / FAIL reporting
+- Randomized data transmission
+- Parity error checking
+- Framing error checking
+- VCD waveform generation
+- GTKWave analysis
+
+---
+
+## ◆ Tools Used
+
+- Verilog HDL
+- Icarus Verilog
+- GTKWave
+- GitHub
+
+---
+
+## ◆ Key Learning Outcomes
+
+- UART Protocol Design
+- FSM-Based RTL Development
+- Serial Communication Systems
+- 16x Oversampling Techniques
+- Verification Methodology
+- Waveform Debugging
+- Parameterized Hardware Design
+
+---
+
+## ◆ Author
+
+**Rakesh Kumar**  
+Electrical Engineering  
+National Institute of Technology Rourkela
