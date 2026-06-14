@@ -1,8 +1,4 @@
-// ==========================================================================
-// Module Name:  uart_rx
-// Description:  Parameterized UART Receiver with Mid-bit Over-sampling Logic
-// Objective:    Silicon-ready, clean Finite State Machine (FSM) implementation
-// ==========================================================================
+
 
 `timescale 1ns / 1ps
 
