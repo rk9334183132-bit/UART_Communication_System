@@ -131,8 +131,4 @@ UART_Communication_System/
 
 ---
 
-## ◆ Author
 
-**Rakesh Kumar**  
-Electrical Engineering  
-National Institute of Technology Rourkela
