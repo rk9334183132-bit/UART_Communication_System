@@ -1,25 +1,52 @@
-# Synthesizable Parameterized UART Communication Core
+# ⚡ Synthesizable Parameterized UART Core with Over-Sampling
 
-A fully synthesizable, hardware-validated UART (Universal Asynchronous Receiver-Transmitter) subsystem written in Verilog HDL. This IP block features decoupled control state machines, adjustable configuration parameters, and a noise-resilient mid-bit over-sampling matrix.
+![](https://img.shields.io/badge/Language-Verilog%20HDL-blue)
+![](https://img.shields.io/badge/Simulator-Icarus%20Verilog-orange)
+![](https://img.shields.io/badge/Viewer-GTKWave-green)
+![]([https://img.shields.io/badge/Design-Synthesizable%20IP-brightgreen](https://img.shields.io/badge/Design-Synthesizable%20IP-brightgreen))
 
-## Core Features
-* **16x Over-Sampling Receiver:** Samples incoming serial data precisely at the stable mid-point (7th and 15th clock ticks) to maximize timing margin and suppress line noise.
-* **Fully Parameterized Stack:** Configurable `CLK_FREQ`, `BAUD_RATE`, and `DATA_WIDTH` registers for multi-system plug-and-play reuse.
-* **Hardware Interlock Flags:** Integrated `tx_busy` and `rx_done_tick` signals for stable handshake interfaces with master processors.
-* **Automated Self-Checking Environment:** Includes a loopback verification testbench that dynamically validates data streams and reports simulation logs automatically.
+A silicon-grade, fully parameterizable **UART (Universal Asynchronous Receiver-Transmitter) Subsystem** designed in Verilog HDL. This IP core features decoupled finite state machines (FSM), integrated hardware parity computation matrixing, and a noise-resilient 16x mid-bit oversampling matrix for robust asynchronous data frame synchronization. Includes a fully automated loopback verification testbench environment.
 
-## Directory Structure
-* `rtl/` - Synthesizable hardware source files (`baud_gen.v`, `uart_tx.v`, `uart_rx.v`, `uart_top.v`)
-* `tb/` - Functional verification environment (`uart_tb.v`)
+---
 
-## How to Compile & Simulate
-Run the following commands in your terminal to compile the source and view the waveforms:
-```powershell
-# Compile the design modules
-iverilog -s uart_tb -o uart_sim.vvp rtl/baud_gen.v rtl/uart_tx.v rtl/uart_rx.v rtl/uart_top.v tb/uart_tb.v
+## ◆ Features & Specifications
 
-# Execute simulation to dump VCD trace file
-vvp uart_sim.vvp
+* **16x Over-Sampling Alignment Matrix:** The receiver module utilizes a 16x clock multiplier strobe to execute center-sampling alignment (sampling exactly at the stable 7th and 15th internal ticks). This maximizes timing margins, mitigates clock drift, and rejects line noise/glitches.
+* **Integrated Hardware Parity Engine:** Configured with native structural Even Parity generation (Transmitter) and real-time computation validation (Receiver) to detect line errors instantly.
+* **Strict Synchronous Reset Scheme:** Built using explicit, clock-edge synchronized active-low reset logic (`rst_n`) across all control paths to maintain fully predictable state boundaries and prevent hardware lockup.
+* **Modular Two-Process FSM Topography:** Control units separate sequential current-state transitions from combinational next-state decoding, optimizing synthesis wire paths and boosting maximum clock frequency ($F_{max}$).
+* **Dynamic Hardware Interlocking:** Features explicit handshake control signaling (`tx_busy`, `rx_done_tick`, `parity_error`, `framing_error`) for seamless interface integration with master microcontrollers or FIFO buffers.
 
-# Launch waveform visualization grid
-gtkwave uart_sim.vcd
+---
+
+## ◆ Hardware Timing Waveforms
+
+Since GitHub doesn't render `.vcd` trace files directly, here is the architectural timing relationship demonstrating how the controller oversamples bits on the serial line:
+
+![UART Simulation Waveforms](waveforms.png)
+
+### Protocol Timing Mechanics (Oversampling Visualization)
+
+```text
+              Transaction Active (Start Bit) ──┐
+                                               ▼
+rx_serial   ───┐                               ┌────────────────────────
+               └───────────────────────────────┘
+               │                               │
+baud_tick   ───┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴─┴
+Tick Count     0 1 2 3 4 5 6 7 8 ...   14 15 0 1 2 3 4 5 6 7 8 ...
+                             ▲               ▲             ▲
+                             │               │             │
+                       [Center Sample]  [Reset Tick]  [Data Sample 0]
+                        (Verify Start)  (Align FSM)   (Stable Center)
+```
+UART_Communication_System/
+├── rtl/
+│   ├── baud_gen.v       # Parameterized clock division strobe generator
+│   ├── uart_tx.v        # Parallel-to-serial transmitter module with parity generation
+│   ├── uart_rx.v        # Serial-to-parallel center-sampling receiver module
+│   └── uart_top.v       # Structural top wrapper stitching subsystem blocks
+├── tb/
+│   └── uart_tb.v        # Automated self-checking functional verification testbench
+└── waveforms/
+    └── uart_sim_upgraded.vcd     # Generated simulation timing trace file
